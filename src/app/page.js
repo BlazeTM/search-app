@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect,useState } from 'react'
-import React from 'react'
+
 import axios from 'axios'
 import { redirect } from "next/navigation";
+import React, { useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 
 
 
@@ -11,6 +13,14 @@ import { redirect } from "next/navigation";
 
 export default function Home() {
   var options = "";
+  var id;
+  const contentToPrint = useRef(null);
+  const handlePrint = useReactToPrint({
+    documentTitle: "Print This Document",
+    onBeforePrint: () => console.log("before printing..."),
+    onAfterPrint: () => console.log("after printing..."),
+    removeAfterPrint: true,
+  });
   useEffect(() => {
     if (document.readyState !== 'complete') {
       const handler = () => {
@@ -43,9 +53,6 @@ export default function Home() {
     var ward = document.getElementById("ward").value;
     console.log(id,name,surname,ward)
       if(id != "" || name != "" || surname != "" || ward != ""){
-
-      
-      
       await getData();
       setFilteredData(data.filter(
         (el) => Object.keys(el).some((parameter) => el[parameter] == options[parameter]
@@ -101,22 +108,25 @@ export default function Home() {
       }
     }
   }
-  
+  async function filterDataOfWorkersClothes(){
+    await loadDataOfWorkerClothes();
+    id = document.getElementById("detailID").textContent;
+    setFilteredDataOfWorkersClothes(dataOfWorkersClothes.filter(
+      (el) => Object.keys(el).some((parameter) => el[parameter] == id
+      )))
+  }
+
   async function neww(){
     var tag = event.target.className
     console.log(tag)
-    setClient(tag);
-    console.log(client)
     setIsDetails(false);
-    let id = tag;
-    console.log(client)
-    console.log("http://127.0.0.1:8080/api/hospitalequipment/"+id)
+    id = tag;
+    console.log(id)
     var res = await axios.get("http://127.0.0.1:8080/api/hospitalequipment/"+id);
-    console.log(res.data)
-     setDetails(res.data)
-     setIsModalDetails(true)
-     loadDataOfWorkerClothes();
-     
+    setDetails(res.data)
+    setIsModalDetails(true)
+    filterDataOfWorkersClothes(); 
+    
     return <center><table>
         <tr>
             <th>identyfikator</th>
@@ -134,21 +144,38 @@ export default function Home() {
     setIsModal(!isModal);}
   }
 
-  function addNewWorkerHandler(){
+  async function addNewWorkerHandler(){
     var name = document.getElementById("newName").value;
     var surname = document.getElementById("newSurname").value;
     var ward = document.getElementById("newWard").value;
-    axios.post("http://127.0.0.1:8080/api/hospitalequipment", {
+    await axios.post("http://127.0.0.1:8080/api/hospitalequipment", {
       name: name,
       surname: surname,
       ward: ward,})
     refresh();
     modalHandler();
+
+
+  }
+  async function addNewActionHandler(){
+    var typeofaction = document.getElementById("typeofactionNew").value;
+    var description = document.getElementById("descriptionNew").value;
+    id = document.getElementById("detailID").textContent;
+    console.log(typeofaction,description,id)
+    await axios.post("http://127.0.0.1:8080/api/listofworkersclothes", {
+      id_of_employe: id,
+      description: description,
+      type_of_action: typeofaction,})
+    modalHandler();
+    filterDataOfWorkersClothes(); 
+    backto()
   }
 
+
   async function loadDataOfWorkerClothes(){
-    let data = await axios.get("http://127.0.0.1:8080/api/listofworkersclothes")
-    setDataOfWorkersClothes(data)
+    let res = await axios.get("http://127.0.0.1:8080/api/listofworkersclothes")
+    console.log(res.data)
+    setDataOfWorkersClothes(res.data)
   }
 
   const [filteredData,setFilteredData] = useState([]);
@@ -175,7 +202,7 @@ export default function Home() {
   }
 
   var detailsClient = (<table><tr>
-    <td> {details.id}</td>
+    <td id='detailID'> {details.id}</td>
     <td> {details.name} </td>
     <td> {details.surname} </td>
     <td> {details.ward} </td>
@@ -200,6 +227,14 @@ var showFiltered = filteredData.map(filteredData => (
   </tr>
 
 ))
+var showFilteredWorkersClothes = filteredDataOfWorkersClothes.map(filteredDataOfWorkersClothes => (
+  <tr key={filteredDataOfWorkersClothes.id}>      
+    <td> {filteredDataOfWorkersClothes.description} </td>
+    <td> {filteredDataOfWorkersClothes.type_of_action} </td>
+    <td> {filteredDataOfWorkersClothes.created} </td>
+  </tr>
+
+))
 
   return (
     <div>
@@ -221,11 +256,35 @@ var showFiltered = filteredData.map(filteredData => (
           <th>Oddzial</th> <th>Wiecej</th></tr>{showFiltered}</table> }
       </div>
       </center>
-      </div>: <center><div><button onClick={backto}>Powrót do listy</button>
-        {detailsClient}</div>{isModalDetailsStart ? <div className='ModalBox'><h1>Wpisz dane zdarzenia</h1>
-      <input id='newName' type='text' placeholder='Wpisz imie pracownika'></input>
-      <input id='newSurname' type='text' placeholder='Wpisz nazwisko pracownika'></input>
-      <input id='newWard' type='text' placeholder='Wpisz oddział pracownika'></input><br></br>
+      </div>: 
+      
+      
+      <center>
+        <button onClick={backto}>Powrót do listy</button>
+        <div ref={contentToPrint}>
+          
+        <center>{detailsClient}</center> <br></br>
+        <center><table><tr>
+    <th>Opis zdarzenia </th>
+    <th>Typ zdarzenia</th>
+    <th>Czas stworzenia</th>
+  </tr>
+  {showFilteredWorkersClothes}
+        </table></center>
+        
+        </div>
+        <button onClick={() => {
+        handlePrint(null, () => contentToPrint.current);
+      }}>
+        Wydrukuj
+      </button>
+        
+        
+        
+        {isModalDetailsStart ? <div className='ModalBox'><h1>Wpisz dane zdarzenia</h1>
+      <input id='descriptionNew' type='text' placeholder='Wpisz opis zdarzenia'></input>
+      <input id='typeofactionNew' type='text' placeholder='Wpisz typ zdarzenia'></input>
+      <button onClick={addNewActionHandler}>Zatwierdz</button>
       <button onClick={modalHandler} className='modalClose'>X</button>
       </div> : <div></div>}</center>}
       {isModal ? <div className='ModalBox'><h1>Wpisz dane nowego pracownika</h1>
